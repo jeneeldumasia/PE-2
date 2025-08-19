@@ -119,4 +119,11 @@ input, textarea {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--input-bg);
+  color: var(--text);
+  caret-color: var(--text);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
