@@ -1,0 +1,168 @@
+Prompt - 1
+Take input from this image, 
+Create a prompt which is well thought out, doesnt miss anything. 
+Make sure here are no functional as well as design oversights, use sqlite for storing data.
+ Make the prompt precise and well organized.
+
+Prompt - 2
+Project Title: Full-Stack Product Feedback Board
+
+Overall Objective:
+Create a full-stack web application that functions as a public product feedback board. Users should be able to submit feedback, view all submitted feedback sorted by popularity, upvote feedback items, and comment on them.
+
+Technology Stack
+Frontend: React (using Vite for setup) with simple CSS for styling. No complex UI libraries are needed.
+
+Backend: Node.js with Express.js.
+
+Database: SQLite.
+
+API: Create a RESTful API for communication between the frontend and backend.
+
+Backend (Server) Requirements
+1. Database Schema (SQLite)
+Define three tables:
+
+feedback table:
+
+id: INTEGER PRIMARY KEY AUTOINCREMENT
+
+title: TEXT NOT NULL
+
+description: TEXT NOT NULL
+
+user_email: TEXT NOT NULL
+
+created_at: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+upvotes table:
+
+id: INTEGER PRIMARY KEY AUTOINCREMENT
+
+feedback_id: INTEGER, FOREIGN KEY (feedback_id) REFERENCES feedback(id)
+
+user_email: TEXT NOT NULL
+
+UNIQUE (feedback_id, user_email) to enforce one vote per user per item.
+
+comments table:
+
+id: INTEGER PRIMARY KEY AUTOINCREMENT
+
+feedback_id: INTEGER, FOREIGN KEY (feedback_id) REFERENCES feedback(id)
+
+user_email: TEXT NOT NULL
+
+comment_text: TEXT NOT NULL
+
+created_at: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+2. API Endpoints
+Implement the following RESTful API endpoints:
+
+GET /api/feedback
+
+Action: Fetches all feedback items.
+
+Logic: For each feedback item, calculate the total upvote count and the total comment count.
+
+Response: Return a JSON array of feedback objects. Each object should include id, title, description, user_email, created_at, upvote_count, and comment_count. The entire list must be sorted by upvote_count in descending order.
+
+POST /api/feedback
+
+Action: Submits a new feedback item.
+
+Request Body: { "title": "string", "description": "string", "user_email": "string" }
+
+Validation:
+
+Ensure title, description, and user_email are not empty.
+
+Validate that user_email is in a proper email format.
+
+Response: Return the newly created feedback object with a 201 Created status code.
+
+POST /api/feedback/:id/upvote
+
+Action: Adds an upvote to a specific feedback item.
+
+Request Body: { "user_email": "string" }
+
+Logic:
+
+Check if the user's email has already upvoted this feedback ID in the upvotes table.
+
+If not, add a new entry to the upvotes table.
+
+If they have already voted, return an error.
+
+Response: On success, return a success message and the new total upvote count. On failure (already voted), return a 409 Conflict status with an error message.
+
+POST /api/feedback/:id/comments
+
+Action: Adds a comment to a specific feedback item.
+
+Request Body: { "user_email": "string", "comment_text": "string" }
+
+Validation: Ensure user_email and comment_text are not empty.
+
+Response: Return the newly created comment object.
+
+GET /api/feedback/:id/comments
+
+Action: Fetches all comments for a specific feedback item.
+
+Response: Return a JSON array of all comments for the given feedback_id, sorted by created_at (oldest first).
+
+Frontend (Client) Requirements
+1. Main View (Feedback List)
+Layout:
+
+At the top, display a form to submit new feedback. The form should have fields for Title, Description, and User Email.
+
+Below the form, display the list of all feedback items fetched from the backend.
+
+Feedback Item Display:
+
+Each item in the list must clearly display its title, description, upvote count, and comment count.
+
+Each item must have an "Upvote" button.
+
+Functionality:
+
+Sorting: The list must be automatically displayed sorted by upvote count (most popular first).
+
+Submission: Submitting the form should call the POST /api/feedback endpoint and refresh the feedback list to show the new entry.
+
+Input Validation: Implement basic frontend validation (e.g., required fields, email format) before submitting.
+
+2. Upvoting Interaction
+When a user clicks the "Upvote" button on an item, prompt them to enter their email address (a simple prompt() dialog is sufficient).
+
+Use this email to call the POST /api/feedback/:id/upvote endpoint.
+
+Update the UI to reflect the new upvote count.
+
+If the API returns an error (e.g., already voted), display an alert to the user.
+
+3. Comments View (Modal or Separate Page)
+Clicking on a feedback item's title or a "View Comments" button should open a view to see and add comments for that specific item.
+
+Display: Show the selected feedback item's full title and description at the top. Below it, list all existing comments (fetched from GET /api/feedback/:id/comments), showing the commenter's email and the comment text.
+
+Add Comment Form: Include a simple form with fields for User Email and Comment Text to allow users to add new comments. Submitting this form should call POST /api/feedback/:id/comments and refresh the comment list.
+
+General Instructions
+Project Structure: Organize the project into two main folders: /client for the React app and /server for the Node.js/Express app.
+
+Error Handling: Implement basic error handling. The backend should return appropriate HTTP status codes (e.g., 400 for bad input, 404 for not found), and the frontend should display user-friendly messages or alerts for these errors.
+
+User Perspective: Ensure the entire workflow is intuitive from a user's perspective. A user should be able to land on the page, understand how to add feedback, and how to interact with existing feedback without confusion.
+
+Prompt-3
+the ui is very plain and simple, make it more pleasing.
+
+
+
+
+
