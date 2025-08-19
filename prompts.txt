@@ -1,3 +1,4 @@
+Disclaimer:  I have used gemini to refine my prompts so that maximum utilization can be done with minimum number of tokens used possible.
 Prompt - 1
 Take input from this image, 
 Create a prompt which is well thought out, doesnt miss anything. 
@@ -161,8 +162,73 @@ User Perspective: Ensure the entire workflow is intuitive from a user's perspect
 
 Prompt-3
 the ui is very plain and simple, make it more pleasing.
+ 
+ PROMPT-4
+ Project Finale: Implement Feedback Statuses and Advanced Sorting
 
+Overall Objective:
+Finalize the application by adding a system for admins to assign a status to each feedback item (e.g., "Planned", "In Progress"). Also, provide all users with options to sort the feedback list by different criteria. This will complete the feedback lifecycle and enhance user navigation.
 
+Backend (Server) Requirements
+1. Database Schema Update (SQLite)
 
+Modify the feedback table:
 
+Add a new column: status TEXT DEFAULT 'Open'.
 
+This column will hold the current state of the feedback item.
+
+2. API Endpoint Modifications
+
+PUT /api/feedback/:id (Admin Only)
+
+Action: Enhance this existing endpoint to allow admins to update the status in addition to the title and description.
+
+Request Body: { "title": "string", "description": "string", "status": "string" } (All fields should be optional).
+
+Validation: Ensure the provided status is one of a predefined list (e.g., 'Open', 'Planned', 'In Progress', 'Completed').
+
+GET /api/feedback (Public)
+
+Action: Modify this endpoint to accept a sortBy query parameter.
+
+Logic:
+
+The query will look like /api/feedback?sortBy=upvotes or /api/feedback?sortBy=newest.
+
+If sortBy=newest, sort the results by created_at in descending order.
+
+If sortBy=upvotes (or if the parameter is omitted), use the existing logic to sort by upvote_count in descending order.
+
+Response: Return the appropriately sorted list of feedback items.
+
+Frontend (Client) Requirements
+1. UI for Sorting
+
+Element: Add a simple dropdown menu or a set of buttons above the feedback list.
+
+Options:
+
+"Most Popular" (this will be the default)
+
+"Newest"
+
+Functionality: When a user selects an option, re-fetch the feedback list by calling the GET /api/feedback endpoint with the corresponding sortBy query parameter (?sortBy=upvotes or ?sortBy=newest) and update the view with the newly sorted data.
+
+2. UI for Feedback Status
+
+Display Status Badge:
+
+On the main feedback list, display the status of each item clearly.
+
+Use a small, colored badge or tag next to the feedback title for visual distinction (e.g., blue for 'Open', yellow for 'In Progress', green for 'Completed').
+
+Admin Status Editor:
+
+In the "Edit Feedback" modal that only admins can access, add a dropdown menu (<select>) field for the status.
+
+Populate this dropdown with the allowed statuses ('Open', 'Planned', 'In Progress', 'Completed').
+
+When the admin saves their changes, the updated status should be sent to the PUT /api/feedback/:id endpoint.
+
+Prompt - 5

@@ -17,19 +17,28 @@ function App() {
   const [commentEmail, setCommentEmail] = useState('')
   const [commentText, setCommentText] = useState('')
 
+  const [sortBy, setSortBy] = useState('upvotes')
+  const [adminToken, setAdminToken] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editStatus, setEditStatus] = useState('Open')
+  const allowedStatuses = ['Open', 'Planned', 'In Progress', 'Completed']
   const sortedFeedback = useMemo(() => {
-    return [...feedbackList].sort((a, b) => b.upvote_count - a.upvote_count)
+    return [...feedbackList]
   }, [feedbackList])
 
   useEffect(() => {
     fetchFeedback()
   }, [])
 
-  async function fetchFeedback() {
+  async function fetchFeedback(nextSortBy = sortBy) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${API_BASE}/api/feedback`)
+      const query = new URLSearchParams({ sortBy: nextSortBy }).toString()
+      const res = await fetch(`${API_BASE}/api/feedback?${query}`)
       if (!res.ok) throw new Error('Failed to load feedback')
       const data = await res.json()
       setFeedbackList(data)
@@ -147,6 +156,48 @@ function App() {
     }
   }
 
+  function startEdit(feedback) {
+    setEditingId(feedback.id)
+    setEditTitle(feedback.title)
+    setEditDescription(feedback.description)
+    setEditStatus(feedback.status || 'Open')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditTitle('')
+    setEditDescription('')
+    setEditStatus('Open')
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault()
+    if (!editingId) return
+    if (!adminToken) {
+      alert('Admin token required')
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/feedback/${editingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': adminToken
+        },
+        body: JSON.stringify({ title: editTitle, description: editDescription, status: editStatus })
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(body.error || 'Failed to update feedback')
+        return
+      }
+      cancelEdit()
+      fetchFeedback()
+    } catch (err) {
+      alert('Failed to update feedback')
+    }
+  }
+
   return (
     <div className="container">
       <div className="header">
@@ -156,6 +207,38 @@ function App() {
         </div>
         <div className="row">
           <span className="badge">Total Ideas {feedbackList.length}</span>
+          <form onSubmit={async (e) => {
+            e.preventDefault()
+            try {
+              const res = await fetch(`${API_BASE}/api/admin/verify`, { headers: { 'x-admin-token': adminToken }})
+              if (res.ok) {
+                setIsAdmin(true)
+              } else {
+                setIsAdmin(false)
+                alert('Invalid admin token')
+              }
+            } catch {
+              setIsAdmin(false)
+              alert('Verification failed')
+            }
+          }} className="row" style={{ gap: 8 }}>
+            <input
+              value={adminToken}
+              onChange={(e) => { setAdminToken(e.target.value); setIsAdmin(false) }}
+              placeholder="Admin token"
+              style={{ padding: 10, borderRadius: 10, border: '1px solid var(--border)' }}
+            />
+            <button type="submit" className="btn ghost">Verify</button>
+            {isAdmin && <span className="badge">Admin Verified</span>}
+          </form>
+          <select
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value); fetchFeedback(e.target.value) }}
+            style={{ padding: 10, borderRadius: 10, border: '1px solid var(--border)' }}
+          >
+            <option value="upvotes">Most Popular</option>
+            <option value="newest">Newest</option>
+          </select>
         </div>
       </div>
       <div className="card">
@@ -187,19 +270,84 @@ function App() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {sortedFeedback.map((f) => (
-              <div key={f.id} className="feedback-item">
-                <div>
-                  <h3 className="feedback-title" onClick={() => openComments(f)}>{f.title}</h3>
-                  <p className="feedback-desc">{f.description}</p>
-                  <div className="counts">
-                    <span className="badge">👍 {f.upvote_count}</span>
-                    <span className="badge">💬 {f.comment_count}</span>
+              <div key={f.id}>
+                <div className="feedback-item">
+                  <div>
+                    <div className="row" style={{ justifyContent: 'space-between' }}>
+                      <h3 className="feedback-title" onClick={() => openComments(f)}>{f.title}</h3>
+                      <span className={`status-badge ${
+                        (f.status || 'Open').toLowerCase().replace(' ', '-') === 'open' ? 'status-open' :
+                        (f.status || 'Open').toLowerCase().replace(' ', '-') === 'planned' ? 'status-planned' :
+                        (f.status || 'Open').toLowerCase().replace(' ', '-') === 'in-progress' ? 'status-in-progress' :
+                        'status-completed'
+                      }`}>{f.status || 'Open'}</span>
+                    </div>
+                    <p className="feedback-desc">{f.description}</p>
+                    <div className="counts">
+                      <span className="badge">👍 {f.upvote_count}</span>
+                      <span className="badge">💬 {f.comment_count}</span>
+                    </div>
+                  </div>
+                  <div className="row">
+                    <button className="btn" onClick={() => upvote(f)}>Upvote</button>
+                    <button className="btn ghost" onClick={() => openComments(f)}>View Comments</button>
+                    {isAdmin && (
+                      editingId === f.id ? (
+                        <button className="btn secondary" onClick={cancelEdit}>Cancel</button>
+                      ) : (
+                        <button className="btn secondary" onClick={() => startEdit(f)}>Edit</button>
+                      )
+                    )}
+                    {isAdmin && (
+                      <button
+                        className="btn secondary"
+                        onClick={async () => {
+                          if (!confirm('Delete this feedback? This cannot be undone.')) return
+                          try {
+                            const res = await fetch(`${API_BASE}/api/feedback/${f.id}`, {
+                              method: 'DELETE',
+                              headers: { 'x-admin-token': adminToken }
+                            })
+                            if (!res.ok) {
+                              const body = await res.json().catch(() => ({}))
+                              alert(body.error || 'Failed to delete')
+                              return
+                            }
+                            if (editingId === f.id) cancelEdit()
+                            fetchFeedback()
+                          } catch {
+                            alert('Failed to delete')
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="row">
-                  <button className="btn" onClick={() => upvote(f)}>Upvote</button>
-                  <button className="btn ghost" onClick={() => openComments(f)}>View Comments</button>
-                </div>
+                {isAdmin && editingId === f.id && (
+                  <form onSubmit={saveEdit} className="form-grid" style={{ marginTop: 12 }}>
+                    <label>
+                      Title
+                      <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                    </label>
+                    <label>
+                      Status
+                      <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                        {allowedStatuses.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ gridColumn: '1 / span 2' }}>
+                      Description
+                      <textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+                    </label>
+                    <div className="row" style={{ gridColumn: '1 / span 2', justifyContent: 'flex-end' }}>
+                      <button className="btn" type="submit">Save</button>
+                    </div>
+                  </form>
+                )}
               </div>
             ))}
             {!sortedFeedback.length && <div>No feedback yet. Be the first to add one!</div>}

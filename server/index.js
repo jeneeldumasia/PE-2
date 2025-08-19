@@ -20,7 +20,8 @@ db.serialize(() => {
 		title TEXT NOT NULL,
 		description TEXT NOT NULL,
 		user_email TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		status TEXT DEFAULT 'Open'
 	)`);
 
 	db.run(`CREATE TABLE IF NOT EXISTS upvotes (
@@ -39,6 +40,11 @@ db.serialize(() => {
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (feedback_id) REFERENCES feedback(id)
 	)`);
+
+	// Attempt to add status column if DB existed before
+	db.run(`ALTER TABLE feedback ADD COLUMN status TEXT DEFAULT 'Open'`, (err) => {
+		// Ignore error if column already exists
+	});
 });
 
 function isValidEmail(email) {
@@ -47,8 +53,11 @@ function isValidEmail(email) {
 
 // GET /api/feedback
 app.get('/api/feedback', (req, res) => {
+	const sortBy = (req.query.sortBy || 'upvotes').toString().toLowerCase();
+	const orderClause = sortBy === 'newest' ? 'f.created_at DESC' : 'upvote_count DESC, f.created_at DESC';
+
 	const query = `
-		SELECT f.id, f.title, f.description, f.user_email, f.created_at,
+		SELECT f.id, f.title, f.description, f.user_email, f.created_at, f.status,
 			COALESCE(u.upvote_count, 0) AS upvote_count,
 			COALESCE(c.comment_count, 0) AS comment_count
 		FROM feedback f
@@ -62,7 +71,7 @@ app.get('/api/feedback', (req, res) => {
 			FROM comments
 			GROUP BY feedback_id
 		) c ON f.id = c.feedback_id
-		ORDER BY upvote_count DESC, f.created_at DESC
+		ORDER BY ${orderClause}
 	`;
 
 	db.all(query, [], (err, rows) => {
@@ -88,11 +97,96 @@ app.post('/api/feedback', (req, res) => {
 		if (err) {
 			return res.status(500).json({ error: 'Failed to create feedback' });
 		}
-		db.get(`SELECT id, title, description, user_email, created_at FROM feedback WHERE id = ?`, [this.lastID], (getErr, row) => {
+		db.get(`SELECT id, title, description, user_email, created_at, status FROM feedback WHERE id = ?`, [this.lastID], (getErr, row) => {
 			if (getErr) {
 				return res.status(500).json({ error: 'Failed to retrieve created feedback' });
 			}
 			res.status(201).json({ ...row, upvote_count: 0, comment_count: 0 });
+		});
+	});
+});
+
+// Simple admin auth via header token
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'changeme';
+function requireAdmin(req, res, next) {
+	const token = req.header('x-admin-token');
+	if (!token || token !== ADMIN_TOKEN) {
+		return res.status(401).json({ error: 'Unauthorized' });
+	}
+	return next();
+}
+
+const ALLOWED_STATUSES = new Set(['Open', 'Planned', 'In Progress', 'Completed']);
+
+// PUT /api/feedback/:id (admin only)
+app.put('/api/feedback/:id', requireAdmin, (req, res) => {
+	const feedbackId = Number(req.params.id);
+	if (!feedbackId) {
+		return res.status(400).json({ error: 'Valid feedback id is required' });
+	}
+	const { title, description, status } = req.body || {};
+
+	if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+		return res.status(400).json({ error: 'Invalid status value' });
+	}
+
+	const fields = [];
+	const values = [];
+	if (title !== undefined) { fields.push('title = ?'); values.push(title); }
+	if (description !== undefined) { fields.push('description = ?'); values.push(description); }
+	if (status !== undefined) { fields.push('status = ?'); values.push(status); }
+
+	if (fields.length === 0) {
+		return res.status(400).json({ error: 'No fields to update' });
+	}
+
+	const sql = `UPDATE feedback SET ${fields.join(', ')} WHERE id = ?`;
+	values.push(feedbackId);
+
+	db.run(sql, values, function (err) {
+		if (err) {
+			return res.status(500).json({ error: 'Failed to update feedback' });
+		}
+		db.get(`SELECT id, title, description, user_email, created_at, status FROM feedback WHERE id = ?`, [feedbackId], (getErr, row) => {
+			if (getErr || !row) {
+				return res.status(500).json({ error: 'Failed to retrieve updated feedback' });
+			}
+			return res.json(row);
+		});
+	});
+});
+
+// GET /api/admin/verify - simple token verification
+app.get('/api/admin/verify', requireAdmin, (req, res) => {
+	return res.json({ ok: true });
+});
+
+// DELETE /api/feedback/:id (admin only)
+app.delete('/api/feedback/:id', requireAdmin, (req, res) => {
+	const feedbackId = Number(req.params.id);
+	if (!feedbackId) {
+		return res.status(400).json({ error: 'Valid feedback id is required' });
+	}
+
+	db.serialize(() => {
+		db.run(`DELETE FROM upvotes WHERE feedback_id = ?`, [feedbackId], function (err) {
+			if (err) {
+				return res.status(500).json({ error: 'Failed to delete upvotes' });
+			}
+			db.run(`DELETE FROM comments WHERE feedback_id = ?`, [feedbackId], function (err2) {
+				if (err2) {
+					return res.status(500).json({ error: 'Failed to delete comments' });
+				}
+				db.run(`DELETE FROM feedback WHERE id = ?`, [feedbackId], function (err3) {
+					if (err3) {
+						return res.status(500).json({ error: 'Failed to delete feedback' });
+					}
+					if (this.changes === 0) {
+						return res.status(404).json({ error: 'Feedback not found' });
+					}
+					return res.json({ ok: true });
+				});
+			});
 		});
 	});
 });

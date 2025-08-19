@@ -60,6 +60,19 @@
   font-weight: 600;
   font-size: 0.85rem;
 }
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.status-open { background: #dbeafe; color: #1e40af; }
+.status-planned { background: #fef3c7; color: #92400e; }
+.status-in-progress { background: #fde68a; color: #92400e; }
+.status-completed { background: #dcfce7; color: #166534; }
 
 .row {
   display: flex;
