@@ -232,3 +232,44 @@ Populate this dropdown with the allowed statuses ('Open', 'Planned', 'In Progres
 When the admin saves their changes, the updated status should be sent to the PUT /api/feedback/:id endpoint.
 
 Prompt - 5
+Project Refinement: Integrate Inline Comments
+
+Overall Objective:
+Refactor the frontend application to display the comments section directly underneath its corresponding feedback item, rather than in a separate view or modal. This will create a more cohesive and intuitive user experience.
+
+This is a frontend-only task. The backend API is already sufficient.
+
+Frontend (Client) Requirements
+1. State Management Changes:
+
+Introduce a new state variable to track which feedback item's comments are currently visible (e.g., const [openCommentsId, setOpenCommentsId] = useState(null);).
+
+Modify the state that stores comments to be an object, where keys are the feedback_id and values are the array of comments for that feedback (e.g., const [comments, setComments] = useState({});).
+
+2. Modify the "View Comments" Button:
+
+This button should no longer open a modal or navigate to a new page.
+
+It should now function as a toggle.
+
+On the first click: It should call the GET /api/feedback/:id/comments endpoint to fetch the comments and set openCommentsId to the current feedback item's ID, revealing the comment section.
+
+On subsequent clicks for the same item: It should simply toggle the visibility by setting openCommentsId to the item's ID or null.
+
+3. Inline Rendering Logic:
+
+Inside the main feedbackList.map() function, immediately after rendering a feedback item's div, add a conditional block.
+
+This block should check if openCommentsId matches the current feedback item's ID (openCommentsId === f.id).
+
+If true, render the following components directly underneath the feedback item:
+
+A list of all fetched comments for that item.
+
+The form for adding a new comment.
+
+4. Update "Add Comment" Functionality:
+
+When a user submits a new comment, after the POST request is successful, the new comment should be instantly added to the state (comments[feedbackId]) to refresh the inline list without needing a full page reload.
+5. Add a button to change theme
+Light and Dark theme can be toggled.

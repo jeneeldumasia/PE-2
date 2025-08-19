@@ -12,8 +12,8 @@ function App() {
   const [description, setDescription] = useState('')
   const [email, setEmail] = useState('')
 
-  const [activeFeedback, setActiveFeedback] = useState(null)
-  const [comments, setComments] = useState([])
+  const [openCommentsId, setOpenCommentsId] = useState(null)
+  const [commentsById, setCommentsById] = useState({})
   const [commentEmail, setCommentEmail] = useState('')
   const [commentText, setCommentText] = useState('')
 
@@ -25,6 +25,7 @@ function App() {
   const [editDescription, setEditDescription] = useState('')
   const [editStatus, setEditStatus] = useState('Open')
   const allowedStatuses = ['Open', 'Planned', 'In Progress', 'Completed']
+  const [theme, setTheme] = useState('light')
   const sortedFeedback = useMemo(() => {
     return [...feedbackList]
   }, [feedbackList])
@@ -32,6 +33,12 @@ function App() {
   useEffect(() => {
     fetchFeedback()
   }, [])
+
+  // Apply theme at the HTML root so CSS variables and backgrounds update globally
+  useEffect(() => {
+    const themeValue = theme === 'dark' ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', themeValue)
+  }, [theme])
 
   async function fetchFeedback(nextSortBy = sortBy) {
     setLoading(true)
@@ -107,24 +114,28 @@ function App() {
     }
   }
 
-  async function openComments(feedback) {
-    setActiveFeedback(feedback)
-    setComments([])
+  async function toggleComments(feedback) {
+    if (openCommentsId === feedback.id) {
+      setOpenCommentsId(null)
+      return
+    }
+    setOpenCommentsId(feedback.id)
     setCommentEmail('')
     setCommentText('')
-    try {
-      const res = await fetch(`${API_BASE}/api/feedback/${feedback.id}/comments`)
-      if (!res.ok) throw new Error('Failed to load comments')
-      const data = await res.json()
-      setComments(data)
-    } catch (e) {
-      alert(e.message)
+    if (!commentsById[feedback.id]) {
+      try {
+        const res = await fetch(`${API_BASE}/api/feedback/${feedback.id}/comments`)
+        if (!res.ok) throw new Error('Failed to load comments')
+        const data = await res.json()
+        setCommentsById((prev) => ({ ...prev, [feedback.id]: data }))
+      } catch (e) {
+        alert(e.message)
+      }
     }
   }
 
-  async function addComment(e) {
+  async function addComment(e, feedbackId) {
     e.preventDefault()
-    if (!activeFeedback) return
     if (!commentEmail.trim() || !commentText.trim()) {
       alert('Email and comment are required')
       return
@@ -134,7 +145,7 @@ function App() {
       return
     }
     try {
-      const res = await fetch(`${API_BASE}/api/feedback/${activeFeedback.id}/comments`, {
+      const res = await fetch(`${API_BASE}/api/feedback/${feedbackId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_email: commentEmail, comment_text: commentText })
@@ -145,11 +156,12 @@ function App() {
         return
       }
       setCommentText('')
-      // Refresh comments
-      const res2 = await fetch(`${API_BASE}/api/feedback/${activeFeedback.id}/comments`)
-      const data2 = await res2.json()
-      setComments(data2)
-      // Also refresh counts in list
+      // Instantly update inline comments list
+      setCommentsById((prev) => ({
+        ...prev,
+        [feedbackId]: [...(prev[feedbackId] || []), body]
+      }))
+      // Also refresh counts in list (updating comment_count)
       fetchFeedback()
     } catch (e) {
       alert('Failed to add comment')
@@ -201,12 +213,33 @@ function App() {
   return (
     <div className="container">
       <div className="header">
-        <div>
+      <div>
           <h1>Product Feedback</h1>
           <p>Share ideas, upvote what matters, and join the discussion.</p>
         </div>
         <div className="row">
-          <span className="badge">Total Ideas {feedbackList.length}</span>
+          <div className="stat-chip">
+            <span className="stat-label">Ideas</span>
+            <span className="stat-value">{feedbackList.length}</span>
+          </div>
+          <button
+            aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            className="btn ghost"
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+          >
+            {theme === 'light' ? (
+              // Moon icon
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" />
+              </svg>
+            ) : (
+              // Sun icon
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.8 1.8-1.8zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zm9-10v-2h-3v2h3zM6.76 19.16l-1.8 1.8 1.79 1.79 1.8-1.79-1.79-1.8zM20.83 4.84l-1.79-1.79-1.8 1.79 1.8 1.8 1.79-1.8zM12 6a6 6 0 100 12 6 6 0 000-12zm0-5h-2v3h2V1z" />
+              </svg>
+            )}
+          </button>
           <form onSubmit={async (e) => {
             e.preventDefault()
             try {
@@ -290,7 +323,7 @@ function App() {
                   </div>
                   <div className="row">
                     <button className="btn" onClick={() => upvote(f)}>Upvote</button>
-                    <button className="btn ghost" onClick={() => openComments(f)}>View Comments</button>
+                    <button className="btn ghost" onClick={() => toggleComments(f)}>{openCommentsId === f.id ? 'Hide Comments' : 'View Comments'}</button>
                     {isAdmin && (
                       editingId === f.id ? (
                         <button className="btn secondary" onClick={cancelEdit}>Cancel</button>
@@ -321,7 +354,7 @@ function App() {
                         }}
                       >
                         Delete
-                      </button>
+        </button>
                     )}
                   </div>
                 </div>
@@ -348,6 +381,37 @@ function App() {
                     </div>
                   </form>
                 )}
+                {openCommentsId === f.id && (
+                  <div className="card" style={{ marginTop: 12 }}>
+                    <h3 style={{ marginTop: 0 }}>Comments</h3>
+                    {!commentsById[f.id] ? (
+                      <div>Loading comments...</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                        {commentsById[f.id].map((c) => (
+                          <div key={c.id} style={{ borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
+                            <div style={{ fontWeight: 600 }}>{c.user_email}</div>
+                            <div>{c.comment_text}</div>
+                          </div>
+                        ))}
+                        {!commentsById[f.id].length && <div>No comments yet.</div>}
+                      </div>
+                    )}
+                    <form onSubmit={(e) => addComment(e, f.id)} className="form-grid" style={{ marginTop: 12 }}>
+                      <label>
+                        Your Email
+                        <input value={commentEmail} onChange={(e) => setCommentEmail(e.target.value)} placeholder="you@example.com" />
+                      </label>
+                      <label>
+                        Comment
+                        <input value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Write a comment" />
+                      </label>
+                      <div className="row" style={{ gridColumn: '1 / span 2', justifyContent: 'flex-end' }}>
+                        <button className="btn" type="submit">Add Comment</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </div>
             ))}
             {!sortedFeedback.length && <div>No feedback yet. Be the first to add one!</div>}
@@ -355,41 +419,7 @@ function App() {
         )}
       </div>
 
-      {activeFeedback && (
-        <div className="card">
-          <h2>Comments</h2>
-          <h3 style={{ margin: 0 }}>{activeFeedback.title}</h3>
-          <p className="feedback-desc">{activeFeedback.description}</p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-            {comments.map((c) => (
-              <div key={c.id} style={{ borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
-                <div style={{ fontWeight: 600 }}>{c.user_email}</div>
-                <div>{c.comment_text}</div>
-              </div>
-            ))}
-            {!comments.length && <div>No comments yet.</div>}
-          </div>
-
-          <form onSubmit={addComment} className="form-grid" style={{ marginTop: 12 }}>
-            <label>
-              Your Email
-              <input value={commentEmail} onChange={(e) => setCommentEmail(e.target.value)} placeholder="you@example.com" />
-            </label>
-            <label>
-              Comment
-              <input value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Write a comment" />
-            </label>
-            <div className="row" style={{ gridColumn: '1 / span 2', justifyContent: 'flex-end' }}>
-              <button className="btn" type="submit">Add Comment</button>
-            </div>
-          </form>
-
-          <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn secondary" onClick={() => setActiveFeedback(null)}>Close</button>
-          </div>
-        </div>
-      )}
+      {/* Inline comments render within each item; no separate comments view */}
     </div>
   )
 }

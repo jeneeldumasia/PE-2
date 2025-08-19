@@ -5,12 +5,24 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px;
-  background: linear-gradient(90deg, rgba(37,99,235,0.08), rgba(99,102,241,0.08));
+  background: var(--header-bg);
   border: 1px solid var(--border);
   border-radius: 16px;
 }
 .header h1 { font-size: 1.5rem; }
 .header p { color: var(--muted); }
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+.stat-label { font-weight: 600; }
+.stat-value { font-weight: 800; font-variant-numeric: tabular-nums; }
 
 .container {
   display: flex;
@@ -36,7 +48,7 @@
   margin: 0;
   font-size: 1.125rem;
   cursor: pointer;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .feedback-desc {
@@ -47,7 +59,7 @@
 .counts {
   display: flex;
   gap: 8px;
-  color: #374151;
+  color: var(--muted);
 }
 .badge {
   display: inline-flex;
@@ -55,8 +67,8 @@
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
   font-weight: 600;
   font-size: 0.85rem;
 }
@@ -106,5 +118,5 @@ input, textarea {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--input-bg);
 }
